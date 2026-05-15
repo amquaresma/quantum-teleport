@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "quantum-teleport-lab"
+version = "0.1.0"
+description = "Quantum teleportation: Qiskit vs PennyLane with noise simulation and metrics"
+requires-python = ">=3.10"
+dependencies = [
+    "qiskit>=1.0.0",
+    "qiskit-aer>=0.14.0",
+    "pennylane>=0.36.0",
+    "numpy>=1.26.0",
+    "scipy>=1.12.0",
+    "matplotlib>=3.8.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0", "pytest-cov>=4.0.0", "jupyter>=1.0.0"]
+ibm = ["qiskit-ibm-runtime>=0.20.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts   = "-v --tb=short"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "experiments*"]
