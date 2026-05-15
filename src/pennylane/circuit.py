@@ -56,9 +56,7 @@ class PennyLaneTeleporter(QuantumTeleporter):
     def framework(self) -> str:
         return "PennyLane"
 
-    # ------------------------------------------------------------------
     # Device factory
-    # ------------------------------------------------------------------
 
     def _make_device(self, noise_channels: Optional[list] = None) -> qml.Device:
         """
@@ -78,9 +76,7 @@ class PennyLaneTeleporter(QuantumTeleporter):
 
         return qml.device(device_name, **kwargs)
 
-    # ------------------------------------------------------------------
     # Circuit construction
-    # ------------------------------------------------------------------
 
     def build_circuit(self, state: QubitState) -> callable:
         """
@@ -174,9 +170,7 @@ class PennyLaneTeleporter(QuantumTeleporter):
 
         return noisy_circuit
 
-    # ------------------------------------------------------------------
     # Execution
-    # ------------------------------------------------------------------
 
     def run(
         self,
@@ -241,9 +235,7 @@ class PennyLaneTeleporter(QuantumTeleporter):
         circuit = self.build_density_matrix_circuit(state)
         return qml.draw(circuit)()
 
-    # ------------------------------------------------------------------
     # Gradient analysis
-    # ------------------------------------------------------------------
 
     def fidelity_vs_theta(
         self,
@@ -280,7 +272,8 @@ class PennyLaneTeleporter(QuantumTeleporter):
             fidelities.append(result.fidelity)
 
         return theta_range, np.array(fidelities)
-            def gradient_of_fidelity(
+
+    def gradient_of_fidelity(
         self,
         theta: float,
         phi: float = 0.0,
@@ -321,9 +314,8 @@ class PennyLaneTeleporter(QuantumTeleporter):
         grads = grad_fn(params)
         return float(grads[0]), float(grads[1])
 
-    # ------------------------------------------------------------------
+    
     # Private helpers
-    # ------------------------------------------------------------------
 
     def _sample_bob_counts(
         self,
@@ -366,10 +358,7 @@ class PennyLaneTeleporter(QuantumTeleporter):
             counts[key] = counts.get(key, 0) + 1
         return counts
 
-
-# ---------------------------------------------------------------------------
-# Noise channel helpers for PennyLane
-# ---------------------------------------------------------------------------
+#Noise channel helpers for PennyLane
 
 def _apply_noise(channels: Optional[list], wires: list[int]) -> None:
     """
