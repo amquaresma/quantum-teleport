@@ -280,3 +280,164 @@ class PennyLaneTeleporter(QuantumTeleporter):
             fidelities.append(result.fidelity)
 
         return theta_range, np.array(fidelities)
+            def gradient_of_fidelity(
+        self,
+        theta: float,
+        phi: float = 0.0,
+    ) -> tuple[float, float]:
+        """
+        Compute ∂F/∂θ and ∂F/∂φ using the parameter-shift rule.
+
+        This is unique to PennyLane and demonstrates its automatic
+        differentiation capabilities for quantum circuits.
+
+        Returns
+        -------
+        (dF_dtheta, dF_dphi)
+        """
+        dev = qml.device("default.mixed", wires=3)
+
+        @qml.qnode(dev, diff_method="parameter-shift")
+        def fidelity_circuit(params):
+            t, p = params[0], params[1]
+            # Input state
+            qml.RY(t, wires=0)
+            qml.RZ(p, wires=0)
+            # Bell pair
+            qml.Hadamard(wires=1)
+            qml.CNOT(wires=[1, 2])
+            # Bell measurement
+            qml.CNOT(wires=[0, 1])
+            qml.Hadamard(wires=0)
+            m0 = qml.measure(0)
+            m1 = qml.measure(1)
+            qml.cond(m1 == 1, qml.PauliX)(wires=2)
+            qml.cond(m0 == 1, qml.PauliZ)(wires=2)
+            # Expectation value used as fidelity proxy
+            return qml.expval(qml.PauliZ(wires=2))
+
+        grad_fn = qml.grad(fidelity_circuit)
+        params = np.array([theta, phi], requires_grad=True)
+        grads = grad_fn(params)
+        return float(grads[0]), float(grads[1])
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _sample_bob_counts(
+        self,
+        state: QubitState,
+        noise_channels: Optional[list],
+    ) -> dict[str, int]:
+        """Run a shot-based measurement on Bob's qubit and return counts."""
+        shots = self.shots or 1024
+        dev = qml.device(
+            "default.mixed" if noise_channels else "default.qubit",
+            wires=3,
+            shots=shots,
+            seed=self.seed,
+        )
+
+        @qml.qnode(dev)
+        def measure_circuit():
+            qml.RY(state.theta, wires=0)
+            qml.RZ(state.phi, wires=0)
+            _apply_noise(noise_channels, wires=[0])
+            qml.Hadamard(wires=1)
+            qml.CNOT(wires=[1, 2])
+            _apply_noise(noise_channels, wires=[1, 2])
+            qml.CNOT(wires=[0, 1])
+            qml.Hadamard(wires=0)
+            _apply_noise(noise_channels, wires=[0, 1])
+            m0 = qml.measure(0)
+            m1 = qml.measure(1)
+            qml.cond(m1 == 1, qml.PauliX)(wires=2)
+            qml.cond(m0 == 1, qml.PauliZ)(wires=2)
+            _apply_noise(noise_channels, wires=[2])
+            return qml.sample(wires=[2])
+
+        samples = measure_circuit()
+        if samples.ndim == 0:
+            samples = np.array([int(samples)])
+        counts: dict[str, int] = {}
+        for s in samples:
+            key = str(int(s))
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
+
+# ---------------------------------------------------------------------------
+# Noise channel helpers for PennyLane
+# ---------------------------------------------------------------------------
+
+def _apply_noise(channels: Optional[list], wires: list[int]) -> None:
+    """
+    Apply a list of noise channels to the given wires.
+
+    Parameters
+    ----------
+    channels : list of (channel_class, kwargs), optional
+        Each entry is (qml.SomeChannel, {"param": value}).
+    wires : list[int]
+        Wires to apply each channel to.
+    """
+    if not channels:
+        return
+    for channel_cls, kwargs in channels:
+        for wire in wires:
+            channel_cls(**kwargs, wires=wire)
+
+
+def make_depolarizing_channels(p: float) -> list:
+    """
+    Build a single-qubit depolarizing noise channel list.
+
+    Parameters
+    ----------
+    p : float
+        Depolarizing parameter ∈ [0, 3/4].
+
+    Returns
+    -------
+    list of (channel_class, kwargs)
+    """
+    channels = [(qml.DepolarizingChannel, {"p": p})]
+    channels._label = f"pl_depolarizing(p={p:.4f})"
+    return channels
+
+
+def make_amplitude_damping_channels(gamma: float) -> list:
+    """
+    Build an amplitude damping channel list (models T1 decay).
+
+    Parameters
+    ----------
+    gamma : float
+        Damping parameter ∈ [0, 1]. γ = 1 - exp(-t/T1).
+
+    Returns
+    -------
+    list of (channel_class, kwargs)
+    """
+    channels = [(qml.AmplitudeDamping, {"gamma": gamma})]
+    channels._label = f"pl_amplitude_damping(γ={gamma:.4f})"
+    return channels
+
+
+def make_phase_damping_channels(gamma: float) -> list:
+    """
+    Build a phase damping channel list (models T2 dephasing).
+
+    Parameters
+    ----------
+    gamma : float
+        Dephasing parameter ∈ [0, 1].
+
+    Returns
+    -------
+    list of (channel_class, kwargs)
+    """
+    channels = [(qml.PhaseDamping, {"gamma": gamma})]
+    channels._label = f"pl_phase_damping(γ={gamma:.4f})"
+    return channels
